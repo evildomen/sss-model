@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc-4.3.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.3.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.3.xsd">
+	
+	<!-- spring的配置文件，主要配置和业务逻辑有关的 -->
+	<!-- 扫描base-package路径下的所有文件 -->
+	<context:component-scan base-package="com.my">
+		<!-- 扫描除了控制器之外的所有组件 -->
+		<context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+	</context:component-scan>
+	
+	<!-- ================================================================ -->
+	
+	<!-- 引入外部的配置文件xxx.properties -->
+	<context:property-placeholder location="classpath:dbconfig.properties"/>
+	<!-- 数据源，事务控制，.....重要的配置 -->
+	<!-- 配置数据库连接 -->
+	<bean id="pooledDataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+		<!-- 读取dbconfig.properties配置文件中的信息，需要引入外部的配置文件 -->
+		<property name="jdbcUrl" value="${jdbc.jdbcUrl}"></property>
+		<property name="driverClass" value="${jdbc.driverClass}"></property>
+		<property name="user" value="${jdbc.user}"></property>
+		<property name="password" value="${jdbc.password}"></property>
+	</bean>
+	
+	<!-- ================================================================ -->
+	
+	<!-- 配置和Mybatis的整合 -->
+	<!-- org.mybatis.spring.SqlSessionFactoryBean这个类可以帮忙创建SqlSessionFactory -->
+	<bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<!-- 指定mybatis全局配置文件的位置 -->
+		<property name="configLocation" value="classpath:mybatis-config.xml"></property>
+		<!-- dataSource数据源，指向一个已经定义完成的数据源 -->
+		<property name="dataSource" ref="pooledDataSource"></property>
+		<!-- 指定mybatis，mapper文件的位置,以下classpath表示扫描main/resource/mapper/下的所有.xml文件 -->
+		<property name="mapperLocations" value="classpath:mapper/*.xml"></property>
+	</bean>
+	
+	<!-- 配置扫描器，将mybatis接口的实现加入到IoC容器中 -->
+	<!-- 扫描对应包下所有mapper接口实现 -->
+	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<!-- 扫描所有项目中所有的dao接口 ，加入到IoC容器中-->
+		<property name="basePackage" value="com.my.dao"></property>
+	</bean>
+	
+	<!-- ================================================================ -->
+	
+	<!-- 事务控制配置 -->
+	<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<!-- 控制住数据源 -->
+		<property name="dataSource" ref="pooledDataSource"></property>
+	</bean>
+	
+	<!-- 开启基于注解的事务，或者使用xml配置形式的事务(重要的配置使用配置式)-->
+	<aop:config>
+		<!-- 切入点表达式 -->
+		<aop:pointcut expression="execution(* com.my.service..*(..))" id="txPoint"/>
+		<!-- 配置事务增强 -->
+		<aop:advisor advice-ref="txAdvice" pointcut-ref="txPoint"/>
+	</aop:config>
+	<!-- 配置事务增强，事务如何切入 -->
+	<!-- transaction-manager:值为事务控制最开始的bean中的id值 -->
+	<tx:advice id="txAdvice" transaction-manager="transactionManager">
+		<tx:attributes>
+			<!-- 所有方法都是事务方法 -->
+			<tx:method name="*"/>
+			<!-- 以get开始的所有方 -->
+			<tx:method name="get" read-only="true"/>
+		</tx:attributes>
+	</tx:advice>
+	
+	<!-- ================================================================ -->
+</beans>
